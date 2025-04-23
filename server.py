@@ -1,42 +1,40 @@
-import socket
+import socket, ssl
 
-# Server configuration
-HOST = '0.0.0.0'  # Listen on all available network interfaces
-PORT = 12345      # Port to listen on
+HOST = '0.0.0.0'
+PORT = 12345
 
-def start_server():
-    # Create a socket object (IPv4, TCP)
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    
-    # Bind the socket to the server address and port
-    server_socket.bind((HOST, PORT))
-    server_socket.listen(1)  # Allow only one connection at a time
+def start_tls_server():
+    # 1) Create SSLContext and require client certs
+    context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+    context.load_cert_chain(certfile="server.cert.pem", keyfile="server.key.pem")
+    context.load_verify_locations(cafile="ca.cert.pem")
+    context.verify_mode = ssl.CERT_REQUIRED
 
-    print(f"Server started, listening on {HOST}:{PORT}...")
+    # 2) Bind & listen
+    bindsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    bindsock.bind((HOST, PORT))
+    bindsock.listen(1)
+    print(f"TLS server listening on {HOST}:{PORT}...")
 
     while True:
-        # Accept a new connection from a client (ESP32)
-        conn, addr = server_socket.accept()
-        print(f"Connection from {addr} established!")
-
+        newsock, addr = bindsock.accept()
+        print(f"Connection from {addr}, performing TLS handshake...")
         try:
-            while True:
-                # Receive data from the client (ESP32)
-                data = conn.recv(1024)  # Adjust buffer size as needed
-                if not data:
-                    break  # Connection closed by the client
-                
-                # Print the received data (moisture value)
-                print(f"Received data: {data.decode('utf-8')}")
+            conn = context.wrap_socket(newsock, server_side=True)
+            print("TLS handshake complete; client cert:", conn.getpeercert())
 
-        except Exception as e:
-            print(f"Error receiving data: {e}")
-        
+            # 3) Read loop
+            while True:
+                data = conn.recv(1024)
+                if not data:
+                    break
+                print("Received (decrypted):", data.decode())
+        except ssl.SSLError as e:
+            print("TLS error:", e)
         finally:
-            # Close the connection once data is received
+            conn.shutdown(socket.SHUT_RDWR)
             conn.close()
             print("Connection closed.")
-
 if __name__ == "__main__":
     def get_local_ip():
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -49,4 +47,4 @@ if __name__ == "__main__":
         return ip
 
     print("Server IP is:", get_local_ip())
-    start_server()
+    start_tls_server()
