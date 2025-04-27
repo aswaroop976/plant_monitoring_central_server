@@ -6,7 +6,7 @@ PORT = 12345
 def start_tls_server():
     # 1) Create SSLContext and require client certs
     context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-    context.load_cert_chain(certfile="server.cert.pem", keyfile="server.key.pem")
+    context.load_cert_chain(certfile="server.crt", keyfile="server.key")
     context.load_verify_locations(cafile="ca.cert.pem")
     context.verify_mode = ssl.CERT_REQUIRED
 
@@ -29,6 +29,17 @@ def start_tls_server():
                 if not data:
                     break
                 print("Received (decrypted):", data.decode())
+
+            
+                text = data.decode().strip()
+                try: 
+                    val = int(text.split(":")[1])
+                except Exception:
+                    cmd = "WATER_OFF"
+                else:
+                    cmd = "WATER_ON" if val < 1900 else "WATER_OFF"
+                conn.send(cmd.encode())
+                print("Sent command to ESP32:", cmd)
         except ssl.SSLError as e:
             print("TLS error:", e)
         finally:
