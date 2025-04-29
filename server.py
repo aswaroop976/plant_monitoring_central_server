@@ -7,7 +7,7 @@ TLS_PORT = 12345
 WEB_PORT = 5000
 
 # Globals shared between threads
-latest_moisture = None
+latest_moisture = 100
 tls_conn = None
 tls_lock = threading.Lock()
 
